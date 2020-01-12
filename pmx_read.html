@@ -1,0 +1,20 @@
+<html>
+    
+    <input type="file" id="input">
+    <script src="encoding.min.js"></script>
+    <script src="binary_reader.js"></script>
+    <script src="pmx_reader.js"></script>
+    <script>
+        document.getElementById('input').addEventListener('change', function() {
+            let file = this.files[0];
+            let reader = new FileReader();
+            reader.onload = function() {
+                readPMX(new Int8Array(reader.result));
+            }
+
+            reader.readAsArrayBuffer(this.files[0]);
+        });
+
+        var reader = new BinaryReader();
+    </script>
+</html>
