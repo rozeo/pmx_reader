@@ -1,163 +1,131 @@
+window.addEventListener('DOMContentLoaded', function() {
+    let canvas = document.createElement('canvas');
 
-function readPMX(buffer) {
-    var reader = new PMXStructures(buffer);
-}
+    document.getElementsByTagName('body')[0].appendChild(canvas);
 
-function bin2ascii(array) {
-    let s = '';
-    for (var i in array) {
-        s += String.fromCodePoint(array[i]);
-    }
-    return s;
-}
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas });
 
-function Vec2(x, y) {
-    this.X = x;
-    this.Y = y;
-}
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    renderer.setPixelRatio(window.devicePixelRatio);
 
-function Vec3(x, y, z) {
-    this.X = x;
-    this.Y = y;
-    this.Z = z;
-}
+    const scene = new THREE.Scene();
 
-function Vec4(x, y, z, a) {
-    this.X = x;
-    this.Y = y;
-    this.Z = z;
-    this.A = a;
-}
+    scene.background = new THREE.Color(0xFFFFFFFF);
 
-function Vertex(pv, nv, uv) {
-    this.Position = pv;
-    this.Vormal = nv;
-    this.UV = uv;
-    // this.addtionalVec4 = av4;
-}
+    const camera = new THREE.PerspectiveCamera(
+        45, window.innerWidth / window.innerHeight, 1, 100000.0
+    );
 
-function checkSignature(buffer) {
-    return buffer.getString(4, 0) === 'PMX ';
-}
+    camera.position.set(0, 15, 20);
+    let cameraLot = 0;
+    
+    let lookAt = new THREE.Vector3(0, 15, 0);
+    // 注視点
+    camera.lookAt(lookAt);
 
-function PMXStructures(buffer) {
-    this.reader = new BinaryReader(buffer);
+    let light = new THREE.DirectionalLight(0xFFFFFFFF);
+    light.position.set(1, 1, 1);
 
-    this.currentBufferOffset = 0;
+    // create horizontal
+    (function(scene) {
+        let material = new THREE.LineBasicMaterial({ color: 0xFF000000 });
 
-    this.version = this.reader.getFloat32(4);
-    this.globalCount = this.reader.getBytes(8, 1)[0];
+        for (let x = 0; x < 20; x++) {
+            let xMov = 10 * (x - 10);
 
-    this.globalHeaders = [0, 0, 0, 0, 0, 0, 0, 0];
-    for(var i = 0; i < this.globalCount; i++) {
-        this.globalHeaders[i] = this.reader.getBytes(9 + i, 1)[0];
-    }
-    console.log(this.globalHeaders);
+            for (let y = 0; y < 20; y++) {
+                let geometry = new THREE.PlaneGeometry(1, 1);
+            
+                let yMov = 10 * (y - 10);
+                
+                geometry.vertices = [
+                    new THREE.Vector3(xMov, 0, yMov),
+                    new THREE.Vector3(xMov + 10, 0, yMov),
+                    new THREE.Vector3(xMov, 0, yMov + 10),
+                    new THREE.Vector3(xMov + 10, 0, yMov + 10)
+                ];
 
-    this.readNameHeaders();
-    this.readEachCount();
+                let edge = new THREE.EdgesGeometry(geometry);
 
-    console.log([
-        this.nameJp,
-        this.nameEn,
-        this.commentJp,
-        this.commentEn
-    ]);
-}
-
-PMXStructures.prototype.readText = function (offset, le) {
-    var bytes = this.reader.getUInt32(offset, true);
-
-    var read = this.reader.getBytes(offset + 4, bytes);
-
-    return {readBytes: 4 + bytes, text: ArrayToUtf16String(read, true)};
-}
-
-function ArrayToUtf16String(arr, le) {
-    var string = '';
-
-    for (var i = 0; i < arr.length; i+= 2) {
-        var data = (le) ? arr[i + 1] * 256 + arr[i]: arr[i] * 256 + arr[i + 1];
-
-        string += String.fromCharCode(data);
-    }
-    return string;
-}
-
-PMXStructures.prototype.readNameHeaders = function() {
-    var placeholder = null;
-
-    var offset = 9 + this.globalCount;
-
-    var readTexts = [];
-    for (var i = 0; i < 4; i++) {
-        placeholder = this.readText(offset, true);
-        readTexts.push(placeholder.text);
-        offset += placeholder.readBytes;
-    }
-
-    this.nameJp = readTexts[0];
-    this.nameEn = readTexts[1];
-    this.commentJp = readTexts[2];
-    this.commentEn = readTexts[3];
-
-    this.headerBytes = offset;
-}
-
-PMXStructures.prototype.readEachCount = function () {
-    var offset = 0;
-    var counts = [];
-
-    var readEls = 9;
-    if (this.version > 2) readEls = 10;
-
-    handlers = [
-        this.readVertices
-    ];
-
-    for(var i = 0; i < 1; i++) {
-        console.log(this.headerBytes, this.reader.getBytes(this.headerBytes + offset, 4, true));
-        var count = this.reader.getUInt32(this.headerBytes + offset, true);
-        counts.push(count);
-        this.readVertices(this.headerBytes + offset + 4, count);
-
-        // offset += 4 + readBytes;
-    }
-    console.log(counts);
-}
-
-PMXStructures.prototype.readVertices = function (offset, count) {
-    for (var i = 0; i < count; i++) {
-        var x = this.reader.getFloat32(offset + 0, true);
-        var y = this.reader.getFloat32(offset + 4, true);
-        var z = this.reader.getFloat32(offset + 8, true);
-
-        var nx = this.reader.getFloat32(offset + 12, true);
-        var ny = this.reader.getFloat32(offset + 16, true);
-        var nz = this.reader.getFloat32(offset + 20, true);
-
-        var ux = this.reader.getFloat32(offset + 24, true);
-        var uy = this.reader.getFloat32(offset + 28, true);
-
-        var av4s = [];
-        var av4s_offset = offset + 32;
-        for (var i = 0; i < this.globalHeaders[1]; i++) {
-            var ax = this.reader.getFloat32(av4s_offset + 0, true);
-            var ay = this.reader.getFloat32(av4s_offset + 4, true);
-            var az = this.reader.getFloat32(av4s_offset + 8, true);
-            var aa = this.reader.getFloat32(av4s_offset + 12, true);
-
-            av4s.push(new Vec4(ax, ay, az, aa));
-            av4s_offset += 16;
+                scene.add(new THREE.LineSegments(edge, material));
+            }
         }
+    })(scene);
 
-        var defType = this.reader.getBytes(av4s_offset, 1)[0];
+    let clicked = false;
+    let prev = null;
+    let crQuate = null;
+    canvas.addEventListener('mousedown', function (evt) {
+        clicked = true;
+        prev = evt.pageX;
+    });
 
-        console.log(new Vertex(
-            new Vec3(x, y, z),
-            new Vec3(nx, ny, nz),
-            new Vec2(ux, uy)), av4s);
+    canvas.addEventListener('mousemove', function (evt) {
+        if(clicked) {
+            let quate = new THREE.Quaternion();
+            var axis = new THREE.Vector3(0, 1, 0);
+            quate.setFromAxisAngle(axis, (prev < evt.pageX) ? -(Math.PI / 180 * 2): (Math.PI / 180 * 2));
+            crQuate = quate;
 
-        break;
+            let pos = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+            let look = new THREE.Vector3(camera.lookAt.x, camera.lookAt.y, camera.lookAt.z);
+
+            pos.applyQuaternion(quate);
+            camera.position.x = pos.x;
+            camera.position.y = pos.y;
+            camera.position.z = pos.z;
+
+            camera.lookAt(lookAt);
+            prev = evt.pageX;
+        }
+    });
+
+    canvas.addEventListener('mouseup', function (evt) {
+        clicked = false;
+    });
+
+
+    window.addEventListener('wheel', function(evt) {
+        let np = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+        np = np.normalize();
+        if (evt.deltaY < 0) {
+            camera.position.x += np.x * 2;
+            // camera.position.y += np.y * 2;
+            camera.position.z += np.z * 2;
+        } else {
+            camera.position.x += np.x * -2;
+            // camera.position.y += np.y * -2;
+            camera.position.z += np.z * -2;
+        }
+        camera.lookAt(lookAt);
+    });
+
+    
+    scene.add(light);
+
+    let clock = new THREE.Clock(true);
+
+    function update() {
+        var delta = clock.getDelta();
+        animate( delta );
+    
+        renderer.render(scene, camera);
+        if (physics !== null) {
+            physics.update();
+        }
+        requestAnimationFrame(update);
     }
-}
+
+    let loader = new THREE.MMDLoader();
+    let physics = null;
+
+    loader.load(
+        'http://localhost/miku/model.pmx',
+        function (mesh) {
+            physics = mesh[1];
+            scene.add(mesh[0]);
+        }, function (){}, function(){}
+    );
+
+    update();
+});

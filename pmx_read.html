@@ -1,20 +1,19 @@
 <html>
-    
-    <input type="file" id="input">
-    <script src="encoding.min.js"></script>
-    <script src="binary_reader.js"></script>
-    <script src="pmx_reader.js"></script>
-    <script>
-        document.getElementById('input').addEventListener('change', function() {
-            let file = this.files[0];
-            let reader = new FileReader();
-            reader.onload = function() {
-                readPMX(new Int8Array(reader.result));
+    <head>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
             }
-
-            reader.readAsArrayBuffer(this.files[0]);
-        });
-
-        var reader = new BinaryReader();
-    </script>
+        </style>
+    </head>
+    <body>
+    </body>
+    <script src="three.js"></script>
+    <script src="ammo.js"></script>
+    <script src="MMDLoader.js"></script>
+    <script src="mmdphysics.js"></script>
+    <script src="mmdparser.min.js"></script>
+    <script src="pmx_reader.js"></script>
 </html>
