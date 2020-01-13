@@ -14,6 +14,10 @@ class PMXReader
         }
         
         $fp = fopen($fileName, 'rb');
-        return new Structures\PMX($fp);
+        $s = new Structures\PMX($fp);
+
+        echo 'current readed, ' . ftell($fp);
+        fclose($fp);
+        return $s;
     }
 }

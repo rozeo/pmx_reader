@@ -65,8 +65,16 @@ class BinaryReader extends \PhpBinaryReader\BinaryReader
         return Utf8ByteReader::load($this->readFromHandle($byteLength), $littleEndian);
     }
 
+    // inf = 2e53-1 for json
     public function readFloat32()
     {
-        return $this->readSingle();
+        $f = $this->readSingle();
+        if (\is_nan($f)) {
+            return 0;
+        } elseif(\is_infinite($f)) {
+            if ($f < 0) return -1 * (2e52 + 1);
+            return (2e52 + 1);
+        }
+        return $f;
     }
 }
