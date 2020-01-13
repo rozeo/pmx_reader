@@ -3,7 +3,8 @@
 namespace App;
 
 use IntlChar;
-
+use App\Utf8ByteReader;
+    
 class BinaryReader extends \PhpBinaryReader\BinaryReader
 {
 
@@ -47,6 +48,21 @@ class BinaryReader extends \PhpBinaryReader\BinaryReader
         }
 
         return $str;
+    }
+
+    public function readStringAsUtf8BE(int $byteLength)
+    {
+        return $this->readStringAsUtf8($byteLength, false);
+    }
+
+    public function readStringAsUtf8LE(int $byteLength)
+    {
+        return $this->readStringAsUtf8($byteLength, true);
+    }
+
+    public function readStringAsUtf8(int $byteLength, $littleEndian = false)
+    {
+        return Utf8ByteReader::load($this->readFromHandle($byteLength), $littleEndian);
     }
 
     public function readFloat32()
