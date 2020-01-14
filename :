@@ -1,0 +1,26 @@
+<?php
+
+class Bone
+{
+    private string $nameJapanese;
+    private string $nameTraditional;
+
+    private Vector3 $position;
+    private int $parentBoneIndex;
+    private int $layer;
+    private int $flags;
+
+    private $tailPosition;
+
+    private IndexWeightPair $inheritBone;
+
+    private Vector3 $fixedAxis;
+
+    private $localCoOrdinateX;
+    private $localCoOrdinateY;
+
+    private $externalParent;
+
+    private $ik;
+
+}

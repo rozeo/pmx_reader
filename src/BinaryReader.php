@@ -33,7 +33,9 @@ class BinaryReader extends \PhpBinaryReader\BinaryReader
 
     public function readStringAsUtf16(int $byteLength, bool $littleEndian = false)
     {   
-        
+
+        if ($byteLength <= 0) return '';
+
         $readBytes = $this->readFromHandle($byteLength);
         $str = '';
 

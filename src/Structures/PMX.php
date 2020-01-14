@@ -9,11 +9,24 @@ use App\Structures\DataType\Vector2;
 use App\Structures\DataType\Vector3;
 use App\Structures\DataType\Vector4;
 use App\Structures\DataType\Vertex;
+use App\Structures\DataType\Material;
+use App\Structures\DataType\Bone;
+use App\Structures\DataType\IK;
+use App\Structures\DataType\IKLink;
 
 use JsonSerializable;
 
 class PMX implements JsonSerializable
 {
+    const GLOBALS_TEXT_FORMAT = 0;
+    const GLOBALS_ADDITION_VEC4S = 1;
+    const GLOBALS_VERTEX_INDEX_TYPE = 2;
+    const GLOBALS_TEXTURE_INDEX_TYPE = 3;
+    const GLOBALS_MATERIAL_INDEX_TYPE = 4;
+    const GLOBALS_BONE_INDEX_TYPE = 5;
+    const GLOBALS_MORPH_INDEX_TYPE = 6;
+    const GLOBALS_RIGIDBODY_INDEX_TYPE = 7;
+
     private $reader;
 
     private $version;
@@ -28,6 +41,14 @@ class PMX implements JsonSerializable
     private $commentTraditional;
 
     private $vertices;
+
+    private $surfaces;
+
+    private $textures;
+
+    private $materials;
+
+    private $bones;
 
     public function __construct(&$fp)
     {
@@ -50,6 +71,10 @@ class PMX implements JsonSerializable
             'comment_jp' => $this->commentJapanese,
             'comment_traditional' => $this->commentTraditional,
             'vertices' => $this->vertices,
+            'surfaces' => $this->surfaces,
+            'textures' => $this->textures,
+            'materials' => $this->materials,
+            'bones' => $this->bones, 
         ];
     }
 
@@ -64,6 +89,14 @@ class PMX implements JsonSerializable
         $this->loadNames();
 
         $this->loadVertices();
+
+        $this->loadSurfaces();
+
+        $this->loadTextures();
+
+        $this->loadMaterials();
+
+        $this->loadBones();
     }
 
     private function loadTextData()
@@ -106,19 +139,25 @@ class PMX implements JsonSerializable
 
         $this->commentJapanese = $this->loadTextData();
         $this->commentTraditional = $this->loadTextData();
-
-        print_r([$this->nameJapanese, $this->commentTraditional]);
     }
 
-    private function loadBoneIndex()
+    private function loadValueIndex(int $globalsIndex)
     {
-        switch($this->globals[5])
+        switch($this->globals[$globalsIndex])
         {
             case 1:
-                return $this->reader->readUInt8();
+                if ($globalsIndex === PMX::GLOBALS_VERTEX_INDEX_TYPE) {
+                    return $this->reader->readUInt8();
+                } else {
+                    return $this->reader->readInt8();
+                }
 
             case 2:
-                return $this->reader->readInt16();
+                if ($globalsIndex === PMX::GLOBALS_VERTEX_INDEX_TYPE) {
+                    return $this->reader->readUInt16();
+                } else {
+                    return $this->reader->readInt16();
+                }
 
             case 4:
                 return $this->reader->readInt32();
@@ -127,7 +166,7 @@ class PMX implements JsonSerializable
 
     private function loadVertices()
     {
-        $vertexCount = $this->reader->readUInt32();
+        $vertexCount = $this->reader->readInt32();
         $this->vertices = [];
 
         for ($i = 0; $i < $vertexCount; $i++) {
@@ -143,7 +182,7 @@ class PMX implements JsonSerializable
             $uy = $this->reader->readFloat32();
 
             $additionVec4s = [];
-            for ($j = 0; $j < $this->globals[1]; $j++) {
+            for ($j = 0; $j < $this->globals[PMX::GLOBALS_ADDITION_VEC4S]; $j++) {
                 $ax = $this->reader->readFloat32();
                 $ay = $this->reader->readFloat32();
                 $az = $this->reader->readFloat32();
@@ -160,14 +199,14 @@ class PMX implements JsonSerializable
                 // BDEF1
                 case 0:
                     $deform = [
-                        new IndexWeightPair($this->loadBoneIndex(), $this->reader->readFloat32()), 
+                        new IndexWeightPair($this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE), 1.0), 
                     ];
                     break;
 
                 // BDEF2
                 case 1:
-                    $i1 = $this->loadBoneIndex();
-                    $i2 = $this->loadBoneIndex();
+                    $i1 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
+                    $i2 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
                     $w1 = $this->reader->readFloat32();
 
                     $deform = [
@@ -179,10 +218,10 @@ class PMX implements JsonSerializable
                 // BDEF4, QDEF
                 case 2:
                 case 4: 
-                    $i1 = $this->loadBoneIndex();
-                    $i2 = $this->loadBoneIndex();
-                    $i3 = $this->loadBoneIndex();
-                    $i4 = $this->loadBoneIndex();
+                    $i1 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
+                    $i2 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
+                    $i3 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
+                    $i4 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
 
                     $w1 = $this->reader->readFloat32();
                     $w2 = $this->reader->readFloat32();
@@ -194,6 +233,38 @@ class PMX implements JsonSerializable
                         new IndexWeightPair($i2, $w2),
                         new IndexWeightPair($i3, $w3),
                         new IndexWeightPair($i4, $w4),
+                    ];
+                    break;
+
+                // SDEF
+                case 3:
+                    $i1 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
+                    $i2 = $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE);
+                    $w1 = $this->reader->readFloat32();
+                    $w2 = 1.0 - $w1;
+                     
+                    $c = new Vector3(
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32()
+                    );
+
+                    $r0 = new Vector3(
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32()
+                    );
+                    
+                    $r1 = new Vector3(
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32(), 
+                        $this->reader->readFloat32()
+                    );
+
+                    $deform = [
+                        new IndexWeightPair($i1, $w1),
+                        new IndexWeightPair($i2, $w2),
+                        $c, $r0, $r1,
                     ];
                     break;
             }
@@ -210,5 +281,170 @@ class PMX implements JsonSerializable
                 $edgeScale
             );
         }
+
+        echo 'Vertices count: ' . count($this->vertices) . "\n";
+    }
+
+    private function loadSurfaces()
+    {
+        $surfacesCount = $this->reader->readInt32();
+
+        echo 'Surfaces count, ' . $surfacesCount . "\n";
+        $this->surfaces = [];
+
+        $surfacesCount /= 3;
+        for ($i = 0; $i < $surfacesCount; $i++) {
+            $this->surfaces[] = [
+                $this->loadValueIndex(PMX::GLOBALS_VERTEX_INDEX_TYPE),
+                $this->loadValueIndex(PMX::GLOBALS_VERTEX_INDEX_TYPE),
+                $this->loadValueIndex(PMX::GLOBALS_VERTEX_INDEX_TYPE)
+            ];
+        }
+    }
+
+    private function loadTextures()
+    {
+        $texturesCount = $this->reader->readInt32();
+        $this->textures = [];
+
+        for ($i = 0; $i < $texturesCount; $i++) {
+            $this->textures[] = $this->loadTextData();
+        }
+
+        print_r($this->textures);
+    }
+
+    private function loadMaterials()
+    {
+        $materialsCount = $this->reader->readInt32();
+        $this->materials = [];
+        
+        for ($i = 0; $i < $materialsCount; $i++) {
+            $this->materials[] = new Material(
+                $this->loadTextData(),
+                $nameTraditional = $this->loadTextData(),
+                new Vector4(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                new Vector3(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                $this->reader->readFloat32(),
+                new Vector3(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                $this->reader->readInt8(),
+                new Vector4(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                $this->reader->readFloat32(),
+                $this->loadValueIndex(PMX::GLOBALS_TEXTURE_INDEX_TYPE),
+                $this->loadValueIndex(PMX::GLOBALS_TEXTURE_INDEX_TYPE),
+                $this->reader->readUInt8(),
+                ($toon = $this->reader->readInt8()),
+                ($toon === 0)? 
+                    $this->loadValueIndex(PMX::GLOBALS_TEXTURE_INDEX_TYPE):
+                    $this->reader->readUInt8(),
+                $this->loadTextData(),
+                $this->reader->readInt32()
+            );
+        }
+
+        print_r($this->materials);
+    }
+
+    public function loadBones()
+    {
+        $bonesCount = $this->reader->readInt32();
+        $this->bones = [];
+
+        echo 'Bones count: ' . $bonesCount . "\n";
+
+        $handle = $this;
+
+        for ($i = 0; $i < $bonesCount; $i++) {
+            $this->bones = new Bone(
+                $this->loadTextData(),
+                $this->loadTextData(),
+                new Vector3(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE),
+                $this->reader->readInt32(),
+                ($flags = $this->reader->readUInt16()),
+                ($flags & 0b1) ? $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE):
+                    new Vector3(
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32(),
+                        $this->reader->readFloat32()
+                    ),
+                new IndexWeightPair($this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE), 
+                    $this->reader->readFloat32()
+                ),
+                new Vector3(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                new Vector3(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+
+                new Vector3(
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32(),
+                    $this->reader->readFloat32()
+                ),
+                $this->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE),
+                (function () use ($handle) {
+                    return new IK(
+                        $handle->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE),
+                        $handle->reader->readInt32(),
+                        $handle->reader->readFloat32(),
+                        ($linksCount = $handle->reader->readInt32()),
+                        (function () use ($handle, $linksCount) {
+                            $links = [];
+                            echo "linksCount" . $linksCount . "\n";
+                            for ($j = 0; $j < $linksCount; $j++) {
+                                $links[] = new IKLink(
+                                    $handle->loadValueIndex(PMX::GLOBALS_BONE_INDEX_TYPE),
+                                    $handle->reader->readUInt8(),
+                                    new Vector3(
+                                        $handle->reader->readFloat32(),
+                                        $handle->reader->readFloat32(),
+                                        $handle->reader->readFloat32()
+                                    ),
+                                    new Vector3(
+                                        $handle->reader->readFloat32(),
+                                        $handle->reader->readFloat32(),
+                                        $handle->reader->readFloat32()
+                                    ),
+                                );
+                            }
+
+                            return $links;
+                        })()
+                    );
+                })()
+            );
+
+            print_r($this->bones[$i]);
+        }
+
+        print_r($this->bones);
     }
 }
