@@ -19,12 +19,29 @@ window.addEventListener('DOMContentLoaded', function() {
     camera.position.set(0, 15, 20);
     let cameraLot = 0;
     
+    let camUp = new THREE.Vector3(0, 1, 0);
     let lookAt = new THREE.Vector3(0, 15, 0);
     // 注視点
     camera.lookAt(lookAt);
+    camera.up = camUp;
 
+    
     let light = new THREE.DirectionalLight(0xFFFFFFFF);
     light.position.set(1, 1, 1);
+
+    /*
+    let xLineGeo = new THREE.BoxGeometry(2, 0.1, 0.1);
+    let yLineGeo = new THREE.BoxGeometry(0.1, 2, 0.1);
+    let zLineGeo = new THREE.BoxGeometry(0.1, 0.1, 2);
+
+    let xLine = new THREE.Mesh(xLineGeo, new THREE.MeshToonMaterial({ color: 0x00FF0000, linewidth: 3 }));
+    let yLine = new THREE.Mesh(yLineGeo, new THREE.MeshToonMaterial({ color: 0x0000FF00, linewidth: 3 }));
+    let zLine = new THREE.Mesh(zLineGeo, new THREE.MeshToonMaterial({ color: 0x000000FF, linewidth: 3 }));
+
+    scene.add(xLine);
+    scene.add(yLine);
+    scene.add(zLine);
+    */
 
     // create horizontal
     (function(scene) {
@@ -53,30 +70,56 @@ window.addEventListener('DOMContentLoaded', function() {
     })(scene);
 
     let clicked = false;
-    let prev = null;
+    let prevX = null;
+    let prevY = null;
     let crQuate = null;
     canvas.addEventListener('mousedown', function (evt) {
         clicked = true;
-        prev = evt.pageX;
+        prevX = evt.pageX;
+        prevY = evt.pageY;
     });
 
+    let axisY = new THREE.Vector3(1, 0, 0);
     canvas.addEventListener('mousemove', function (evt) {
         if(clicked) {
-            let quate = new THREE.Quaternion();
-            var axis = new THREE.Vector3(0, 1, 0);
-            quate.setFromAxisAngle(axis, (prev < evt.pageX) ? -(Math.PI / 180 * 2): (Math.PI / 180 * 2));
-            crQuate = quate;
+            subX = evt.pageX - prevX;
+            subY = evt.pageY - prevY;
 
-            let pos = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
-            let look = new THREE.Vector3(camera.lookAt.x, camera.lookAt.y, camera.lookAt.z);
+            let quateX = new THREE.Quaternion();
+            let quateY = new THREE.Quaternion();
 
-            pos.applyQuaternion(quate);
-            camera.position.x = pos.x;
-            camera.position.y = pos.y;
-            camera.position.z = pos.z;
+            let axisX = new THREE.Vector3(0, 1, 0);
+
+            let rotateAngleX = Math.PI / 180 * 2 * subX * -0.1;
+            let rotateAngleY = Math.PI / 180 * 2 * subY * -0.1;
+
+            quateX.setFromAxisAngle(axisX, rotateAngleX);
+            quateY.setFromAxisAngle(axisY, rotateAngleY);
+            // crQuate = quate;
+
+            let orgVec = camera.position.clone();
+            orgVec.add(lookAt.clone().negate());
+
+            let vVec = orgVec.clone();
+            let hVec = orgVec.clone();
+
+            vVec.applyQuaternion(quateX);
+            hVec.applyQuaternion(quateY);
+            axisY.applyQuaternion(quateX);
+            
+            /* 正規化 */
+            vVec.add(orgVec.clone().negate());
+            hVec.add(orgVec.clone().negate());
+            vVec.add(hVec);
+
+            camera.position.add(vVec);
+
+            camUp.applyQuaternion(quateY);
 
             camera.lookAt(lookAt);
-            prev = evt.pageX;
+
+            prevX = evt.pageX;
+            prevY = evt.pageY;
         }
     });
 
@@ -86,18 +129,17 @@ window.addEventListener('DOMContentLoaded', function() {
 
 
     window.addEventListener('wheel', function(evt) {
-        let np = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+        let np = new THREE.Vector3(camera.position.x - lookAt.x, camera.position.y - lookAt.y, camera.position.z - lookAt.z);
         np = np.normalize();
         if (evt.deltaY < 0) {
-            camera.position.x += np.x * 2;
-            // camera.position.y += np.y * 2;
-            camera.position.z += np.z * 2;
+            camera.position.x -= np.x;
+            camera.position.y -= np.y;
+            camera.position.z -= np.z;
         } else {
-            camera.position.x += np.x * -2;
-            // camera.position.y += np.y * -2;
-            camera.position.z += np.z * -2;
+            camera.position.x += np.x;
+            camera.position.y += np.y;
+            camera.position.z += np.z;
         }
-        camera.lookAt(lookAt);
     });
 
     
@@ -107,7 +149,6 @@ window.addEventListener('DOMContentLoaded', function() {
 
     function update() {
         var delta = clock.getDelta();
-        animate( delta );
     
         renderer.render(scene, camera);
         if (physics !== null) {
@@ -119,13 +160,13 @@ window.addEventListener('DOMContentLoaded', function() {
     let loader = new THREE.MMDLoader();
     let physics = null;
 
-    loader.load(
+    /*loader.load(
         'http://localhost/miku/model.pmx',
         function (mesh) {
             physics = mesh[1];
             scene.add(mesh[0]);
         }, function (){}, function(){}
-    );
+    );*/
 
     update();
 });
